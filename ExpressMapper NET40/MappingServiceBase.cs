@@ -63,44 +63,44 @@ namespace ExpressMapper
                 "There is no mapping has bee found. Source Type: {0}, Destination Type: {1}", src.FullName, dest.FullName ) );
         }
 
-        private static void RegisterDynamic( Type src, Type dest ) {
+        private static void RegisterDynamic( Type src, Type dest ) 
+        {
             var method = typeof( Mapper ).GetMethod( "Register", BindingFlags.Public | BindingFlags.Static );
             var generic = method.MakeGenericMethod( src, dest );
             generic.Invoke( null, null );
         }
 
-        protected void CompileGenericCustomTypeMapper(Type srcType, Type dstType, ICustomTypeMapper typeMapper, int cacheKey)
-        {
-            if (CustomTypeMapperExpCache.ContainsKey(cacheKey)) return;
+        protected void CompileGenericCustomTypeMapper( Type srcType, Type dstType, ICustomTypeMapper typeMapper, int cacheKey ) {
+            if ( CustomTypeMapperExpCache.ContainsKey( cacheKey ) ) return;
 
-            var srcTypedExp = Expression.Variable(srcType, "srcTyped");
-            var dstTypedExp = Expression.Variable(dstType, "dstTyped");
+            var srcTypedExp = Expression.Variable( srcType, "srcTyped" );
+            var dstTypedExp = Expression.Variable( dstType, "dstTyped" );
 
-            var customGenericType = typeof(ICustomTypeMapper<,>).MakeGenericType(srcType, dstType);
+            var customGenericType = typeof( ICustomTypeMapper<,> ).MakeGenericType( srcType, dstType );
             var castToCustomGeneric = Expression.Convert(
-                Expression.Constant(typeMapper, typeof(ICustomTypeMapper)),
-                customGenericType);
-            var genVariable = Expression.Variable(customGenericType);
-            var assignExp = Expression.Assign(genVariable, castToCustomGeneric);
-            var methodInfo = customGenericType.GetMethod("Map");
-            var genericMappingContext = typeof(DefaultMappingContext<,>).MakeGenericType(srcType, dstType);
-            var newMappingContextExp = Expression.New(genericMappingContext);
-            var contextVarExp = Expression.Variable(genericMappingContext, string.Format("context{0}", Guid.NewGuid()));
-            var assignContextExp = Expression.Assign(contextVarExp, newMappingContextExp);
+                Expression.Constant( typeMapper, typeof( ICustomTypeMapper ) ),
+                customGenericType );
+            var genVariable = Expression.Variable( customGenericType );
+            var assignExp = Expression.Assign( genVariable, castToCustomGeneric );
+            var methodInfo = customGenericType.GetMethod( "Map" );
+            var genericMappingContext = typeof( DefaultMappingContext<,> ).MakeGenericType( srcType, dstType );
+            var newMappingContextExp = Expression.New( genericMappingContext );
+            var contextVarExp = Expression.Variable( genericMappingContext, string.Format( "context{0}", Guid.NewGuid() ) );
+            var assignContextExp = Expression.Assign( contextVarExp, newMappingContextExp );
 
-            var sourceExp = Expression.Property(contextVarExp, "Source");
-            var sourceAssignedExp = Expression.Assign(sourceExp, srcTypedExp);
-            var destExp = Expression.Property(contextVarExp, "Destination");
-            var destAssignedExp = Expression.Assign(destExp, dstTypedExp);
+            var sourceExp = Expression.Property( contextVarExp, "Source" );
+            var sourceAssignedExp = Expression.Assign( sourceExp, srcTypedExp );
+            var destExp = Expression.Property( contextVarExp, "Destination" );
+            var destAssignedExp = Expression.Assign( destExp, dstTypedExp );
 
-            var mapCall = Expression.Call(genVariable, methodInfo, contextVarExp);
+            var mapCall = Expression.Call( genVariable, methodInfo, contextVarExp );
             //var resultVarExp = Expression.Variable(dstType, "result");
             //var resultAssignExp = Expression.Assign(resultVarExp, mapCall);
-            var resultAssignExp = Expression.Assign(dstTypedExp, mapCall);
+            var resultAssignExp = Expression.Assign( dstTypedExp, mapCall );
 
-            var blockExpression = Expression.Block(new[] { genVariable, contextVarExp }, assignExp, assignContextExp, sourceAssignedExp, destAssignedExp, resultAssignExp);
+            var blockExpression = Expression.Block( new[] { genVariable, contextVarExp }, assignExp, assignContextExp, sourceAssignedExp, destAssignedExp, resultAssignExp );
 
-            CustomTypeMapperExpCache[cacheKey] = Expression.Block(new ParameterExpression[] { }, blockExpression);
+            CustomTypeMapperExpCache[cacheKey] = Expression.Block( new ParameterExpression[] { }, blockExpression );
         }
 
         protected virtual bool ComplexMapCondition(Type src, Type dst)

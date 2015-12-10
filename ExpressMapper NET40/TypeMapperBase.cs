@@ -173,21 +173,30 @@ namespace ExpressMapper
                 var invocationExpression = Expression.Invoke(customConstruct, SourceParameter);
                 return Expression.Assign(DestFakeParameter, invocationExpression);
             }
+            if( _autoInstantiate )
+            {
+                // TODO: Detect if a ctor exists matching the signature of the private properties
+
+            }
             var createDestination = Expression.New(typeof(TN));
             return Expression.Assign(DestFakeParameter, createDestination);
         }
 
+        public PropertyInfo[] GetPublicProperties<T>() {
+            return typeof( T ).GetProperties( BindingFlags.FlattenHierarchy | BindingFlags.Instance | BindingFlags.Public );
+        }
+
+        public PropertyInfo[] GetNonPublicProperties<T>() {
+            return typeof( T ).GetProperties( BindingFlags.FlattenHierarchy | BindingFlags.Instance | BindingFlags.NonPublic);
+        }
+
         protected void ProcessAutoProperties()
         {
-            var getFields =
-                typeof(T).GetFields(BindingFlags.FlattenHierarchy | BindingFlags.Instance | BindingFlags.Public);
-            var setFields =
-                typeof(TN).GetFields(BindingFlags.FlattenHierarchy | BindingFlags.Instance | BindingFlags.Public);
+            var getFields = GetPublicProperties<T>();
+            var setFields = GetPublicProperties<TN>();
 
-            var getProps =
-                typeof(T).GetProperties(BindingFlags.FlattenHierarchy | BindingFlags.Instance | BindingFlags.Public);
-            var setProps =
-                typeof(TN).GetProperties(BindingFlags.FlattenHierarchy | BindingFlags.Instance | BindingFlags.Public);
+            var getProps = GetPublicProperties<T>();
+            var setProps = GetPublicProperties<TN>();
 
             var sourceMembers = getFields.Cast<MemberInfo>().Union(getProps);
             var destMembers = setFields.Cast<MemberInfo>().Union(setProps);
@@ -201,11 +210,16 @@ namespace ExpressMapper
                 var setprop = destMembers.FirstOrDefault(x => string.Equals(x.Name, prop.Name, StringComparison.OrdinalIgnoreCase));
 
                 var propertyInfo = setprop as PropertyInfo;
-                if ((propertyInfo == null && setprop == null) || (propertyInfo != null && (!propertyInfo.CanWrite || !propertyInfo.GetSetMethod(true).IsPublic)))
+
+                var hasPublicSetter = propertyInfo.GetSetMethod( true ).IsPublic;
+
+                if ((propertyInfo == null && setprop == null) || 
+                    (propertyInfo != null && (!propertyInfo.CanWrite || !hasPublicSetter)))
                 {
                     IgnoreMemberList.Add(prop.Name);
                     continue;
                 }
+                
                 AutoMembers[prop] = setprop;
                 AutoMapProperty(prop, setprop);
             }
@@ -213,6 +227,16 @@ namespace ExpressMapper
         public virtual void Instantiate(Func<T, TN> constructor)
         {
             ConstructorFunc = constructor;
+        }
+
+        private bool _autoInstantiate = false;
+
+        /// <summary>
+        /// Calling this method enables auto-discovery of a suitable
+        /// non-default constructor.
+        /// </summary>
+        public virtual void AutoInstantiate() {
+            _autoInstantiate = true;
         }
 
         public virtual void BeforeMap(Action<T, TN> beforeMap)

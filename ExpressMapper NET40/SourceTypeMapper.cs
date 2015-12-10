@@ -28,11 +28,11 @@ namespace ExpressMapper
         {
             if (ResultMapFunction != null) return;
 
-            var destVariable = GetDestionationVariable();
-
             ProcessCustomMembers();
             ProcessCustomFunctionMembers();
             ProcessAutoProperties();
+
+            var destVariable = GetDestionationVariable();
 
             CreateQueryableProjection();
 

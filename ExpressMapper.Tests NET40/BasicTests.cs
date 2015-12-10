@@ -1038,6 +1038,34 @@ namespace ExpressMapper.Tests
             Assert.AreEqual(result.Category.Catalog.TripType.GetHashCode(), tripCatCtlTypeHash);
         }
 
+        public class NoDefaultCtor 
+        {
+            public string Id { get; set; }
+
+            public NoDefaultCtor(string id ) {
+                Id = id;
+            }
+        }
+
+        public class DefaultCtor {
+            public string Id { get; set; }
+
+            public DefaultCtor() {
+                Id = "42";
+            }
+        }
+
+
+        [Test]
+        public void RegisterDynamicallyOnTypesWithNoDefaultCtor() {
+            Mapper.Register<Tuple<DefaultCtor>, Tuple<NoDefaultCtor>>();
+
+            var mapped = Mapper.Map<Tuple<DefaultCtor>, NoDefaultCtor>( 
+                new Tuple<DefaultCtor>( new DefaultCtor { Id = "84" } ) );
+
+            Assert.That( mapped.Id, Is.EqualTo( "84" ) );
+        }
+
         [Test]
         public void EnumMap()
         {

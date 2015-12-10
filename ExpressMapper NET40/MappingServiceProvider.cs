@@ -6,60 +6,57 @@ using System.Linq.Expressions;
 
 namespace ExpressMapper
 {
-    public sealed class MappingServiceProvider : IMappingServiceProvider
+  public sealed class MappingServiceProvider: IMappingServiceProvider {
+    private static readonly object _lock = new object();
+
+    public Dictionary<int, Func<ICustomTypeMapper>> CustomMappers { get; set; }
+    private readonly Dictionary<int, Func<object, object, object>> _customTypeMapperCache = new Dictionary<int, Func<object, object, object>>();
+    private readonly List<int> _nonGenericCollectionMappingCache = new List<int>();
+
+    private static readonly Type GenericEnumerableType = typeof( IEnumerable<> );
+    private readonly IList<IMappingService> _mappingServices;
+
+    private IMappingService SourceService {
+      get { return _mappingServices.First( m => !m.DestinationSupport ); }
+    }
+
+    private IMappingService DestinationService
     {
-        private static readonly object _lock = new object();
+      get { return _mappingServices.First( m => m.DestinationSupport ); }
+    }
 
-        public Dictionary<int, Func<ICustomTypeMapper>> CustomMappers { get; set; }
-        private readonly Dictionary<int, Func<object, object, object>> _customTypeMapperCache = new Dictionary<int, Func<object, object, object>>();
-        private readonly List<int> _nonGenericCollectionMappingCache = new List<int>();
-
-        private static readonly Type GenericEnumerableType = typeof(IEnumerable<>);
-        private readonly IList<IMappingService> _mappingServices;
-
-        private IMappingService SourceService {
-            get { return _mappingServices.First(m => !m.DestinationSupport); }
-        }
-
-        private IMappingService DestinationService
-        {
-            get { return _mappingServices.First(m => m.DestinationSupport); }
-        }
-
-        public MappingServiceProvider()
-        {
-            // todo : make it via internal DependencyResolver - IOC
-            _mappingServices = new List<IMappingService>
-            {
+    public MappingServiceProvider() {
+      // todo : make it via internal DependencyResolver - IOC
+      _mappingServices = new List<IMappingService>
+      {
                 new SourceMappingService(this),
                 new DestinationMappingService(this)
             };
-            CustomMappers = new Dictionary<int, Func<ICustomTypeMapper>>();
-        }
+      CustomMappers = new Dictionary<int, Func<ICustomTypeMapper>>();
+    }
 
-        public IQueryable<TN> Project<T, TN>(IQueryable<T> source)
-        {
-            var srcType = typeof(T);
-            var destType = typeof(TN);
-            var cacheKey = CalculateCacheKey(srcType, destType);
+    public IQueryable<TN> Project<T, TN>( IQueryable<T> source ) {
+      var srcType = typeof( T );
+      var destType = typeof( TN );
+      var cacheKey = CalculateCacheKey( srcType, destType );
 
-            if (!SourceService.TypeMappers.ContainsKey(cacheKey)) return null;
+      if ( !SourceService.TypeMappers.ContainsKey( cacheKey ) ) return null;
 
-            var typeMapper = SourceService.TypeMappers[cacheKey];
-            var mapper = typeMapper as ITypeMapper<T, TN>;
-            if (mapper.QueryableExpression == null)
-            {
-                mapper.Compile();
-            }
-            return source.Select(mapper.QueryableExpression);
-        }
+      var typeMapper = SourceService.TypeMappers[cacheKey];
+      var mapper = typeMapper as ITypeMapper<T, TN>;
+      if ( mapper.QueryableExpression == null ) {
+        mapper.Compile();
+      }
+      return source.Select( mapper.QueryableExpression );
+    }
 
         public IMemberConfiguration<T, TN> Register<T, TN>()
         {
+            var src = typeof( T );
+            var dest = typeof( TN );
+
             lock (_lock)
             {
-                var src = typeof (T);
-                var dest = typeof (TN);
                 var cacheKey = CalculateCacheKey(src, dest);
 
                 if (SourceService.TypeMappers.ContainsKey(cacheKey) &&
@@ -81,6 +78,7 @@ namespace ExpressMapper
 
                 SourceService.TypeMappers[cacheKey] = sourceClassMapper;
                 DestinationService.TypeMappers[cacheKey] = destinationClassMapper;
+
                 return
                     new MemberConfiguration<T, TN>(new ITypeMapper<T, TN>[] {sourceClassMapper, destinationClassMapper});
             }
